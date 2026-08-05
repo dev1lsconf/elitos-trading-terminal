@@ -373,7 +373,7 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
     } catch (err) {
       console.error('Error cargando datos:', err);
     } finally {
-      if (seq === loadSeqRef.current && !background) setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }, [config.symbol, config.timeframe, config.market]);
 
