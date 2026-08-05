@@ -320,6 +320,15 @@ const rangeAfter = await visibleRange('panel-0');
 report(!!customRange && !!rangeAfter && Math.abs(rangeAfter.from - customRange.from) <= 1 && Math.abs(rangeAfter.to - customRange.to) <= 1,
   `refresh: el zoom custom se preserva tras el refresh (from=${rangeAfter ? Math.round(rangeAfter.from) : 'n/a'}, to=${rangeAfter ? Math.round(rangeAfter.to) : 'n/a'})`);
 
+// Timestamp 'Últ. act.' en el header del panel-0
+const lastActBefore = await page.locator('main .rounded-lg span', { hasText: 'Últ. act.' }).first().textContent({ timeout: 3000 }).catch(() => null);
+report(!!lastActBefore && /Últ\. act\. \d{1,2}:\d{2}:\d{2}/.test(lastActBefore), `refresh: timestamp 'Últ. act.' visible (text=${lastActBefore?.trim() ?? 'n/a'})`);
+
+await page.waitForTimeout(11500); // cubre otro tick de refresh (10s)
+
+const lastActAfter = await page.locator('main .rounded-lg span', { hasText: 'Últ. act.' }).first().textContent({ timeout: 3000 }).catch(() => null);
+report(!!lastActBefore && !!lastActAfter && lastActBefore.trim() !== lastActAfter.trim(), 'refresh: el timestamp se actualiza tras el refresh');
+
 await page.screenshot({ path: 'verify_refresh.png' });
 
 console.log('ERRORES DE CONSOLA:', errors.length ? errors.join('\n') : 'ninguno');

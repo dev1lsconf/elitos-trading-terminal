@@ -66,6 +66,7 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
   const [marketStatus, setMarketStatus] = useState<'Live' | 'Closed'>('Live');
   const [lastPrice, setLastPrice] = useState<number | null>(null);
   const [symbolInput, setSymbolInput] = useState(config.symbol);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const loadSeqRef = useRef(0);
   const marketStatusRef = useRef(marketStatus);
   const lastIndicatorsKeyRef = useRef<string | null>(null);
@@ -363,6 +364,7 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       // Validar que tenga candlestick data; si la API devolvió {error}, no actualizar datos.
       if (seq === loadSeqRef.current && result && Array.isArray(result.candles)) {
         setData(result);
+        setLastUpdated(new Date());
         if (import.meta.env.DEV) {
           const w = window as unknown as { __elitosChartMeta?: Record<string, { refreshCount: number; lastUpdated: number }> };
           w.__elitosChartMeta = w.__elitosChartMeta ?? {};
@@ -638,6 +640,12 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
         <span className={`ml-auto px-2 py-0.5 rounded text-xs font-medium ${marketStatus === 'Live' ? 'bg-[#089981]/20 text-[#089981]' : 'bg-[#F23645]/20 text-[#F23645]'}`}>
           {marketStatus}
         </span>
+
+        {lastUpdated && (
+          <span className="text-xs text-[#787B86] font-mono">
+            Últ. act. {lastUpdated.toLocaleTimeString()}
+          </span>
+        )}
 
         {/* Last price */}
         {lastPrice !== null && (
