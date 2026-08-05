@@ -289,6 +289,25 @@ report(!!r1d && r1d.from <= 1 && r1d.count >= total1d - 2, `zoom default: grid=1
 
 await page.screenshot({ path: 'verify_default_zoom.png' });
 
+// ---- Refresco automático de los paneles (cada 10s) ----
+async function chartMeta(panelId) {
+  return page.evaluate((id) => window.__elitosChartMeta?.[id] ?? null, panelId);
+}
+
+// En dev el refresh corre siempre, aunque el mercado esté cerrado
+const meta0 = await chartMeta('panel-0');
+report(!!meta0 && meta0.refreshCount >= 1, `refresh: hook expone refreshCount (count=${meta0 ? meta0.refreshCount : 'n/a'})`);
+const refreshCountBefore = meta0?.refreshCount ?? 0;
+const tsBefore = meta0?.lastUpdated ?? 0;
+
+await page.waitForTimeout(11500); // cubre al menos un tick de refresh (10s)
+
+const meta1 = await chartMeta('panel-0');
+report((meta1?.refreshCount ?? 0) > refreshCountBefore, `refresh: el contador incrementa tras ~11s (before=${refreshCountBefore}, after=${meta1 ? meta1.refreshCount : 'n/a'})`);
+report((meta1?.lastUpdated ?? 0) > tsBefore, `refresh: lastUpdated se actualiza (before=${tsBefore}, after=${meta1 ? meta1.lastUpdated : 'n/a'})`);
+
+await page.screenshot({ path: 'verify_refresh.png' });
+
 console.log('ERRORES DE CONSOLA:', errors.length ? errors.join('\n') : 'ninguno');
 if (errors.length) failures++;
 await browser.close();

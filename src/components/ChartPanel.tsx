@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createChart,
   createSeriesMarkers,
@@ -66,6 +66,13 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
   const [marketStatus, setMarketStatus] = useState<'Live' | 'Closed'>('Live');
   const [lastPrice, setLastPrice] = useState<number | null>(null);
   const [symbolInput, setSymbolInput] = useState(config.symbol);
+  const loadSeqRef = useRef(0);
+  const marketStatusRef = useRef(marketStatus);
+  const lastIndicatorsKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    marketStatusRef.current = marketStatus;
+  }, [marketStatus]);
 
   const TIMEFRAMES: PanelConfig['timeframe'][] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w', '1M'];
 
@@ -198,6 +205,11 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
         if (w.__elitosCharts) delete w.__elitosCharts[config.id];
       }
 
+      if (import.meta.env.DEV) {
+        const w = window as unknown as { __elitosChartMeta?: Record<string, { refreshCount: number; lastUpdated: number }> };
+        if (w.__elitosChartMeta) delete w.__elitosChartMeta[config.id];
+      }
+
       chartRef.current = null;
     };
   }, []);
@@ -328,48 +340,73 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
   };
 
   // Cargar datos cuando cambian config
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-
-    const loadData = async () => {
-      try {
-        const { fetchCrypto, fetchStocks, fetchCryptoLive } = await import('../services/api');
-        let result: PanelData | null = null;
-        if (config.market === 'crypto') {
-          const r = await fetchCrypto(config.symbol, config.timeframe);
-          // Obtener precio en vivo para crypto
-          const live = await fetchCryptoLive();
-          if (!cancelled && live.live) setLastPrice(live.price);
-          if (!cancelled) setMarketStatus('Live');
-          result = r;
-        } else {
-          const r = await fetchStocks(config.symbol, config.timeframe);
-          if (!cancelled) setMarketStatus('Closed'); // se actualiza con fetchMarketStatus
-          result = r;
-        }
-        // Validar que tenga candlestick data; si la API devolvió {error}, no actualizar datos.
-        if (!cancelled && result && Array.isArray(result.candles)) {
-          setData(result);
-        }
-        if (!cancelled) setLoading(false);
-      } catch (err) {
-        console.error('Error cargando datos:', err);
-        if (!cancelled) setLoading(false);
+  const loadData = useCallback(async (background: boolean) => {
+    const seq = ++loadSeqRef.current;
+    if (!background) setLoading(true);
+    try {
+      const { fetchCrypto, fetchStocks, fetchCryptoLive } = await import('../services/api');
+      let result: PanelData | null = null;
+      if (config.market === 'crypto') {
+        const r = await fetchCrypto(config.symbol, config.timeframe);
+        // Obtener precio en vivo para crypto
+        const live = await fetchCryptoLive();
+        if (seq === loadSeqRef.current && live.live) setLastPrice(live.price);
+        if (seq === loadSeqRef.current) setMarketStatus('Live');
+        result = r;
+      } else {
+        const r = await fetchStocks(config.symbol, config.timeframe);
+        if (seq === loadSeqRef.current) setMarketStatus('Closed'); // se actualiza con fetchMarketStatus
+        result = r;
       }
-    };
-
-    loadData();
-    return () => { cancelled = true; };
+      // Validar que tenga candlestick data; si la API devolvió {error}, no actualizar datos.
+      if (seq === loadSeqRef.current && result && Array.isArray(result.candles)) {
+        setData(result);
+        if (import.meta.env.DEV) {
+          const w = window as unknown as { __elitosChartMeta?: Record<string, { refreshCount: number; lastUpdated: number }> };
+          w.__elitosChartMeta = w.__elitosChartMeta ?? {};
+          const meta = w.__elitosChartMeta[config.id] ?? { refreshCount: 0, lastUpdated: 0 };
+          meta.refreshCount += 1;
+          meta.lastUpdated = Date.now();
+          w.__elitosChartMeta[config.id] = meta;
+        }
+      }
+    } catch (err) {
+      console.error('Error cargando datos:', err);
+    } finally {
+      if (seq === loadSeqRef.current && !background) setLoading(false);
+    }
   }, [config.symbol, config.timeframe, config.market]);
+
+  // Polling: carga inicial + refresh cada 10s. En dev corre siempre; en prod solo si el mercado está Live.
+  useEffect(() => {
+    loadData(false);
+    const id = setInterval(() => {
+      if (import.meta.env.DEV || marketStatusRef.current === 'Live') loadData(true);
+    }, 10000);
+    return () => clearInterval(id);
+  }, [loadData]);
 
   // Actualizar series cuando llegan datos
   useEffect(() => {
     if (!data || !data.candles || !candleSeriesRef.current || !volumeSeriesRef.current) return;
 
-    // Asegurar que las series de indicadores existen antes de setear sus datos
-    rebuildIndicatorPanes();
-    applyExtraSeries();
+    // Asegurar que las series de indicadores existen antes de setear sus datos.
+    // Solo se reconstruyen si la config de indicadores cambió: un refresh de datos
+    // (mismo contexto) no debe recrear los sub-panes.
+    const indicatorsKey = [
+      config.indicators.vwap,
+      config.indicators.bollinger,
+      config.indicators.rsi,
+      config.indicators.macd,
+      config.indicators.williams,
+      config.indicators.volumeProfile,
+      config.indicators.fvg,
+    ].join('|');
+    if (indicatorsKey !== lastIndicatorsKeyRef.current) {
+      rebuildIndicatorPanes();
+      applyExtraSeries();
+      lastIndicatorsKeyRef.current = indicatorsKey;
+    }
 
     const candles: CandlestickData<Time>[] = data.candles.map((c: Candle) => ({
       time: c.time as Time,
