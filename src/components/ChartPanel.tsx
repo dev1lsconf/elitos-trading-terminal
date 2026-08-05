@@ -377,6 +377,9 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
     } catch (err) {
       console.error('Error cargando datos:', err);
     } finally {
+      // Limpiar el spinner si esta carga es la última, aunque sea background:
+      // si un tick background supera a una carga foreground (fetch lento), debe
+      // despejar el spinner que esa carga dejó sin limpiar.
       if (seq === loadSeqRef.current) setLoading(false);
     }
   }, [config.symbol, config.timeframe, config.market]);
@@ -643,7 +646,7 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
 
         {lastUpdated && (
           <span className="text-xs text-[#787B86] font-mono">
-            Últ. act. {lastUpdated.toLocaleTimeString()}
+            Últ. act. {lastUpdated.toLocaleTimeString('es-ES', { hour12: false })}
           </span>
         )}
 
