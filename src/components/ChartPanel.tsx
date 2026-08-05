@@ -69,6 +69,8 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
   const loadSeqRef = useRef(0);
   const marketStatusRef = useRef(marketStatus);
   const lastIndicatorsKeyRef = useRef<string | null>(null);
+  const prevRangeRef = useRef<{ from: number; to: number } | null>(null);
+  const lastDataContextRef = useRef<string | null>(null);
 
   useEffect(() => {
     marketStatusRef.current = marketStatus;
@@ -408,6 +410,10 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       lastIndicatorsKeyRef.current = indicatorsKey;
     }
 
+    // Capturar el rango visible antes de reemplazar los datos: lo usará el efecto de
+    // zoom para restaurar la vista del usuario tras un refresh del mismo contexto.
+    prevRangeRef.current = chartRef.current?.timeScale().getVisibleLogicalRange() ?? null;
+
     const candles: CandlestickData<Time>[] = data.candles.map((c: Candle) => ({
       time: c.time as Time,
       open: c.open,
@@ -542,6 +548,15 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
   useEffect(() => {
     const chart = chartRef.current;
     if (!data || !chart || !containerRef.current) return;
+    const ctx = `${config.symbol}|${config.timeframe}|${config.market}`;
+    if (ctx === lastDataContextRef.current) {
+      // Refresh del mismo contexto: restaurar el rango visible previo (preserva zoom/scroll del usuario)
+      if (prevRangeRef.current) {
+        try { chart.timeScale().setVisibleLogicalRange(prevRangeRef.current); } catch {}
+      }
+      return;
+    }
+    lastDataContextRef.current = ctx;
     const width = containerRef.current.clientWidth;
     const barsToShow = Math.max(10, Math.floor(width / DEFAULT_BAR_SPACING));
     const n = data.candles.length;

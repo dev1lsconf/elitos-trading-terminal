@@ -306,6 +306,20 @@ const meta1 = await chartMeta('panel-0');
 report((meta1?.refreshCount ?? 0) > refreshCountBefore, `refresh: el contador incrementa tras ~11s (before=${refreshCountBefore}, after=${meta1 ? meta1.refreshCount : 'n/a'})`);
 report((meta1?.lastUpdated ?? 0) > tsBefore, `refresh: lastUpdated se actualiza (before=${tsBefore}, after=${meta1 ? meta1.lastUpdated : 'n/a'})`);
 
+// Aplicar un zoom custom vía dev hook: debe preservarse tras un refresh
+await page.evaluate((id) => {
+  const ch = window.__elitosCharts?.[id];
+  if (ch) ch.timeScale().setVisibleLogicalRange({ from: 10, to: 40 });
+}, 'panel-0');
+await page.waitForTimeout(500);
+const customRange = await visibleRange('panel-0');
+
+await page.waitForTimeout(11500); // cubre otro tick de refresh (10s)
+
+const rangeAfter = await visibleRange('panel-0');
+report(!!customRange && !!rangeAfter && Math.abs(rangeAfter.from - customRange.from) <= 1 && Math.abs(rangeAfter.to - customRange.to) <= 1,
+  `refresh: el zoom custom se preserva tras el refresh (from=${rangeAfter ? Math.round(rangeAfter.from) : 'n/a'}, to=${rangeAfter ? Math.round(rangeAfter.to) : 'n/a'})`);
+
 await page.screenshot({ path: 'verify_refresh.png' });
 
 console.log('ERRORES DE CONSOLA:', errors.length ? errors.join('\n') : 'ninguno');
