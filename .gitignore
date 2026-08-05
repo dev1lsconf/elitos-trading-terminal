@@ -1,0 +1,28 @@
+# Dependencias
+node_modules/
+dist/
+
+# Entorno y secretos
+.env
+.env.*
+!.env.example
+
+# Backend Python
+backend/venv/
+backend/__pycache__/
+*.pyc
+__pycache__/
+
+# Artefactos de tests E2E (se regeneran en cada run)
+verify_*.png
+
+# Estado interno del agente / workflow
+.superpowers/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema
+.DS_Store
+Thumbs.db
