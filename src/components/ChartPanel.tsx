@@ -682,7 +682,7 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
 
         {/* Last price */}
         {lastPrice !== null && (
-          <span className="text-xs text-[#787B86] font-mono">
+          <span className="text-sm text-[#D1D4DC] font-semibold font-mono">
             {lastPrice.toLocaleString()}
           </span>
         )}
