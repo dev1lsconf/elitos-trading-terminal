@@ -423,8 +423,12 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
     // zoom para restaurar la vista del usuario tras un refresh del mismo contexto.
     prevRangeRef.current = chartRef.current?.timeScale().getVisibleLogicalRange() ?? null;
 
-    // Calcular porcentaje: value = (close[i] / base - 1) * 100, base = close[0]
+// Calcular porcentaje: value = (close[i] / base - 1) * 100, base = close[0]
     const basePrice = data.candles[0]?.close ?? 1;
+    // Actualizar último precio (para el header) usando el close de la última vela
+    const lastClose = data.candles[data.candles.length - 1]?.close;
+    if (lastClose !== undefined) setLastPrice(lastClose);
+
     const lineData: LineData<Time>[] = data.candles.map((c: Candle) => ({
       time: c.time as Time,
       value: ((c.close / basePrice) - 1) * 100,

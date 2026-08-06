@@ -413,6 +413,19 @@ const realUsStatus = (await (await fetch('http://localhost:5001/api/market-statu
 const badge = await page.locator('main .rounded-lg span', { hasText: /^(Live|Closed)$/ }).first().textContent({ timeout: 3000 }).catch(() => null);
 report(!!badge && badge.trim() === realUsStatus, `refresh: el badge de mercado coincide con el estado real (badge=${badge?.trim() ?? 'n/a'}, real=${realUsStatus})`);
 
+// El header del panel-0 debe mostrar el último precio (close de la última vela), no solo en crypto.
+// Regresión: al pasar velas→compare el lastPrice solo se setea para crypto; los stocks quedaban sin precio.
+{
+  const res = await fetch('http://localhost:5001/api/stocks?symbol=AAPL&interval=1d');
+  const j = await res.json();
+  const lastClose = (j.candles ?? []).at(-1)?.close ?? null;
+  const priceText = await page.locator('main .rounded-lg span').filter({ has: page.locator('span.font-mono') }).first().textContent({ timeout: 3000 }).catch(() => null);
+  const priceTexts = await page.locator('main .rounded-lg span.font-mono').allTextContents({ timeout: 3000 }).catch(() => []);
+  const priceNum = (priceTexts ?? []).map(t => parseFloat(t.replace(/[^\d.,]/g, '').replace(',', ''))).find(n => Number.isFinite(n) && n > 0);
+  const diff = priceNum != null && lastClose != null ? Math.abs(priceNum - lastClose) : Infinity;
+  report(!!priceNum && lastClose != null && diff < 0.01, `header: muestra ultimo precio (price=${priceNum ?? 'n/a'}, expected=${lastClose ?? 'n/a'})`);
+}
+
 // Aplicar un zoom custom vía dev hook: debe preservarse tras un refresh
 await page.evaluate((id) => {
   const ch = window.__elitosCharts?.[id];
