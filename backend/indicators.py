@@ -54,6 +54,77 @@ def williams_r(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 
     return ((hh - close) / (hh - ll).replace(0, np.nan)) * -100
 
 
+def ema(close: pd.Series, period: int = 21) -> pd.Series:
+    """Exponential Moving Average."""
+    return close.ewm(span=period, adjust=False).mean()
+
+
+def sma(close: pd.Series, period: int = 50) -> pd.Series:
+    """Simple Moving Average."""
+    return close.rolling(period).mean()
+
+
+def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+    """Average True Range (Wilder)."""
+    prev_close = close.shift()
+    tr = pd.concat(
+        [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+    ).max(axis=1)
+    return tr.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+
+
+def supertrend(
+    high: pd.Series, low: pd.Series, close: pd.Series, period: int = 10, multiplier: float = 3.0
+) -> pd.DataFrame:
+    """Supertrend (estilo TradingView).
+
+    Devuelve dos series: `lower` = valor del supertrend cuando hay uptrend
+    (verde) y `upper` = valor cuando hay downtrend (rojo). Los tramos no
+    activos son NaN.
+    """
+    atr_v = atr(high, low, close, period)
+    hl2 = (high + low) / 2
+    upper = hl2 + multiplier * atr_v
+    lower = hl2 - multiplier * atr_v
+
+    n = len(close)
+    fub = upper.to_numpy(dtype=float).copy()
+    flb = lower.to_numpy(dtype=float).copy()
+    trend_up = np.ones(n, dtype=bool)
+    st = np.full(n, np.nan)
+
+    for i in range(1, n):
+        if fub[i] < fub[i - 1] or close.iloc[i - 1] > fub[i - 1]:
+            fub[i] = fub[i - 1]
+        if flb[i] > flb[i - 1] or close.iloc[i - 1] < flb[i - 1]:
+            flb[i] = flb[i - 1]
+
+        if trend_up[i - 1]:
+            st[i] = flb[i]
+            if close.iloc[i] < st[i]:
+                trend_up[i] = False
+                st[i] = fub[i]
+        else:
+            st[i] = fub[i]
+            if close.iloc[i] > st[i]:
+                trend_up[i] = True
+                st[i] = flb[i]
+
+    trend_up = trend_up.copy()
+    trend_up[0] = True
+    upper_out = np.where(trend_up, np.nan, st)
+    lower_out = np.where(trend_up, st, np.nan)
+    return pd.DataFrame({"upper": upper_out, "lower": lower_out}, index=close.index)
+
+
+def donchian(high: pd.Series, low: pd.Series, period: int = 20) -> pd.DataFrame:
+    """Canales de Donchian."""
+    upper = high.rolling(period).max()
+    lower = low.rolling(period).min()
+    mid = (upper + lower) / 2
+    return pd.DataFrame({"upper": upper, "mid": mid, "lower": lower})
+
+
 def volume_profile(df: pd.DataFrame, bins: int = 24) -> dict[str, Any]:
     """Perfil de volumen calculado sobre una ventana de datos.
 
@@ -180,6 +251,11 @@ def compute_all(df: pd.DataFrame) -> dict[str, Any]:
         "bollinger": {k: _series(v) for k, v in bollinger(close).items()},
         "vwap": _series(vwap(high, low, close, vol)),
         "williams": _series(williams_r(high, low, close)),
+        "ema": _series(ema(close)),
+        "sma": _series(sma(close)),
+        "atr": _series(atr(high, low, close)),
+        "supertrend": {k: _series(v) for k, v in supertrend(high, low, close).items()},
+        "donchian": {k: _series(v) for k, v in donchian(high, low).items()},
         "volume_profile": volume_profile(df),
         "fvg": fair_value_gaps(df),
     }

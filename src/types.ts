@@ -29,6 +29,18 @@ export interface ChartIndicators {
   };
   vwap: (number | null)[];
   williams: (number | null)[];
+  ema?: (number | null)[];
+  sma?: (number | null)[];
+  atr?: (number | null)[];
+  supertrend?: {
+    upper?: (number | null)[];
+    lower?: (number | null)[];
+  };
+  donchian?: {
+    upper?: (number | null)[];
+    mid?: (number | null)[];
+    lower?: (number | null)[];
+  };
   volume_profile: VolumeProfileData;
   fvg: FVGBox[];
 }
@@ -64,6 +76,11 @@ export interface PanelConfig {
     williams: boolean;
     volumeProfile: boolean;
     fvg: boolean;
+    ema: boolean;
+    sma: boolean;
+    atr: boolean;
+    supertrend: boolean;
+    donchian: boolean;
   };
 }
 
@@ -122,5 +139,10 @@ export const DEFAULT_PANEL_CONFIG: Omit<PanelConfig, 'id'> = {
     williams: false,
     volumeProfile: false,
     fvg: false,
+    ema: false,
+    sma: false,
+    atr: false,
+    supertrend: false,
+    donchian: false,
   },
 };

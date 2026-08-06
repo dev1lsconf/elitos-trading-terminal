@@ -53,6 +53,14 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
   const macdLineRef = useRef<ISeriesApi<'Line'> | null>(null);
   const macdSignalRef = useRef<ISeriesApi<'Line'> | null>(null);
   const williamsSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const emaSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const smaSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const atrSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const stUpSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const stDownSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const donchianUpperRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const donchianMidRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const donchianLowerRef = useRef<ISeriesApi<'Line'> | null>(null);
   const markersPluginRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const volumeProfilePrimitiveRef = useRef<VolumeProfilePrimitive | null>(null);
   const fvgPrimitiveRef = useRef<FVGPrimitive | null>(null);
@@ -198,6 +206,14 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       macdLineRef.current = null;
       macdSignalRef.current = null;
       williamsSeriesRef.current = null;
+      emaSeriesRef.current = null;
+      smaSeriesRef.current = null;
+      atrSeriesRef.current = null;
+      stUpSeriesRef.current = null;
+      stDownSeriesRef.current = null;
+      donchianUpperRef.current = null;
+      donchianMidRef.current = null;
+      donchianLowerRef.current = null;
       volumeProfilePrimitiveRef.current = null;
       fvgPrimitiveRef.current = null;
       vpPocLineRef.current = null;
@@ -265,6 +281,115 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       }
     } else {
       [bollingerUpperRef, bollingerMidRef, bollingerLowerRef].forEach(ref => {
+        if (ref.current) {
+          try { chart.removeSeries(ref.current); } catch {}
+          ref.current = null;
+        }
+      });
+    }
+
+    const percentFormat = { type: 'percent' as const, precision: 2, minMove: 0.01 };
+
+// EMA
+    if (config.indicators.ema && !emaSeriesRef.current) {
+      emaSeriesRef.current = chart.addSeries(LineSeries, {
+        color: '#FFEB3B',
+        lineWidth: 3,
+        priceLineVisible: false,
+        priceFormat: percentFormat,
+        title: 'EMA (21)',
+      }) as ISeriesApi<'Line'>;
+    } else if (!config.indicators.ema && emaSeriesRef.current) {
+      try { chart.removeSeries(emaSeriesRef.current); } catch {}
+      emaSeriesRef.current = null;
+    }
+
+// SMA
+    if (config.indicators.sma && !smaSeriesRef.current) {
+      smaSeriesRef.current = chart.addSeries(LineSeries, {
+        color: '#FF6D00',
+        lineWidth: 3,
+        priceLineVisible: false,
+        priceFormat: percentFormat,
+        title: 'SMA (50)',
+      }) as ISeriesApi<'Line'>;
+    } else if (!config.indicators.sma && smaSeriesRef.current) {
+      try { chart.removeSeries(smaSeriesRef.current); } catch {}
+      smaSeriesRef.current = null;
+    }
+
+    // ATR
+    if (config.indicators.atr && !atrSeriesRef.current) {
+      atrSeriesRef.current = chart.addSeries(LineSeries, {
+        color: '#00E676',
+        lineWidth: 3,
+        priceLineVisible: false,
+        priceFormat: percentFormat,
+        title: 'ATR (14)',
+      }) as ISeriesApi<'Line'>;
+    } else if (!config.indicators.atr && atrSeriesRef.current) {
+      try { chart.removeSeries(atrSeriesRef.current); } catch {}
+      atrSeriesRef.current = null;
+    }
+
+    // Supertrend: 2 series (verde uptrend / rojo downtrend)
+    if (config.indicators.supertrend) {
+      if (!stUpSeriesRef.current) {
+        stUpSeriesRef.current = chart.addSeries(LineSeries, {
+          color: '#089981',
+          lineWidth: 2,
+          priceLineVisible: false,
+          priceFormat: percentFormat,
+          title: 'Supertrend',
+        }) as ISeriesApi<'Line'>;
+      }
+      if (!stDownSeriesRef.current) {
+        stDownSeriesRef.current = chart.addSeries(LineSeries, {
+          color: '#F23645',
+          lineWidth: 2,
+          priceLineVisible: false,
+          priceFormat: percentFormat,
+          title: 'Supertrend',
+        }) as ISeriesApi<'Line'>;
+      }
+    } else {
+      [stUpSeriesRef, stDownSeriesRef].forEach(ref => {
+        if (ref.current) {
+          try { chart.removeSeries(ref.current); } catch {}
+          ref.current = null;
+        }
+      });
+    }
+
+    // Donchian Channels
+    if (config.indicators.donchian) {
+      if (!donchianUpperRef.current) {
+        donchianUpperRef.current = chart.addSeries(LineSeries, {
+          color: '#787B86',
+          lineWidth: 1,
+          lineStyle: 2,
+          priceLineVisible: false,
+          priceFormat: percentFormat,
+          title: 'DC Upper',
+        }) as ISeriesApi<'Line'>;
+        donchianMidRef.current = chart.addSeries(LineSeries, {
+          color: '#787B86',
+          lineWidth: 1,
+          priceLineVisible: false,
+          priceFormat: percentFormat,
+          title: 'DC Mid',
+        }) as ISeriesApi<'Line'>;
+        donchianLowerRef.current = chart.addSeries(LineSeries, {
+          color: '#787B86',
+          lineWidth: 1,
+          lineStyle: 2,
+          priceLineVisible: false,
+          priceFormat: percentFormat,
+          title: 'DC Lower',
+        }) as ISeriesApi<'Line'>;
+      }
+    } else {
+      [donchianUpperRef, donchianMidRef, donchianLowerRef].forEach(ref => {
         if (ref.current) {
           try { chart.removeSeries(ref.current); } catch {}
           ref.current = null;
@@ -387,6 +512,12 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       if (seq === loadSeqRef.current) setLoading(false);
     }
   }, [config.symbol, config.timeframe, config.market]);
+
+  // Recargar datos en background cuando cambian los indicadores para traer
+  // los campos nuevos del backend (overlays) sin resetear el zoom/spinner.
+  useEffect(() => {
+    loadData(true);
+  }, [config.indicators]);
 
   // Polling: carga inicial + refresh cada 10s. En dev corre siempre; en prod solo si el mercado está Live.
   useEffect(() => {
@@ -518,6 +649,58 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
         if (wData.length > 0) williamsSeriesRef.current.setData(wData);
       }
 
+      // EMA
+      if (config.indicators.ema && emaSeriesRef.current && ind.ema) {
+        const emaData: LineData<Time>[] = ind.ema
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) - 1) * 100 } : null)
+          .filter((v): v is LineData<Time> => v !== null);
+        if (emaData.length > 0) emaSeriesRef.current.setData(emaData);
+      }
+
+      // SMA
+      if (config.indicators.sma && smaSeriesRef.current && ind.sma) {
+        const smaData: LineData<Time>[] = ind.sma
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) - 1) * 100 } : null)
+          .filter((v): v is LineData<Time> => v !== null);
+        if (smaData.length > 0) smaSeriesRef.current.setData(smaData);
+      }
+
+      // ATR
+      if (config.indicators.atr && atrSeriesRef.current && ind.atr) {
+        const atrData: LineData<Time>[] = ind.atr
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) * 100) } : null)
+          .filter((v): v is LineData<Time> => v !== null);
+        if (atrData.length > 0) atrSeriesRef.current.setData(atrData);
+      }
+
+      // Supertrend: upper (downtrend, rojo) + lower (uptrend, verde)
+      if (config.indicators.supertrend && stUpSeriesRef.current && stDownSeriesRef.current && ind.supertrend?.lower && ind.supertrend?.upper) {
+        const lowerData: LineData<Time>[] = ind.supertrend.lower!
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) - 1) * 100 } : null)
+          .filter((v): v is LineData<Time> => v !== null);
+        const upperData: LineData<Time>[] = ind.supertrend.upper!
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) - 1) * 100 } : null)
+          .filter((v): v is LineData<Time> => v !== null);
+        if (lowerData.length > 0) stUpSeriesRef.current.setData(lowerData);
+        if (upperData.length > 0) stDownSeriesRef.current.setData(upperData);
+      }
+
+      // Donchian
+      if (config.indicators.donchian && donchianUpperRef.current && donchianMidRef.current && donchianLowerRef.current && ind.donchian?.upper && ind.donchian?.mid && ind.donchian?.lower) {
+        const upperData: LineData<Time>[] = ind.donchian.upper!
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) - 1) * 100 } : null)
+          .filter((v): v is LineData<Time> => v !== null);
+        const midData: LineData<Time>[] = ind.donchian.mid!
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) - 1) * 100 } : null)
+          .filter((v): v is LineData<Time> => v !== null);
+        const lowerData: LineData<Time>[] = ind.donchian.lower!
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) - 1) * 100 } : null)
+          .filter((v): v is LineData<Time> => v !== null);
+        if (upperData.length > 0) donchianUpperRef.current.setData(upperData);
+        if (midData.length > 0 && donchianMidRef.current) donchianMidRef.current.setData(midData);
+        if (lowerData.length > 0 && donchianLowerRef.current) donchianLowerRef.current.setData(lowerData);
+      }
+
       // Volume Profile - líneas POC/VAH/VAL + histograma horizontal
       const vp = ind.volume_profile;
       const removeVpLines = () => {
@@ -576,6 +759,11 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       } else if (markersPluginRef.current) {
         markersPluginRef.current.setMarkers([]);
       }
+
+      // Restaurar zoom previo tras setear overlays (evita que fitContent extra rompa el zoom).
+      if (chart && prevRangeRef.current) {
+        try { chart.timeScale().setVisibleLogicalRange(prevRangeRef.current); } catch {}
+      }
     }
   }, [data, config.indicators]);
 
@@ -608,7 +796,7 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
   // Efecto para indicadores que cambian
   useEffect(() => {
     applyExtraSeries();
-  }, [config.indicators.vwap, config.indicators.bollinger, config.indicators.rsi, config.indicators.macd, config.indicators.williams]);
+  }, [config.indicators.vwap, config.indicators.bollinger, config.indicators.rsi, config.indicators.macd, config.indicators.williams, config.indicators.ema, config.indicators.sma, config.indicators.atr, config.indicators.supertrend, config.indicators.donchian]);
 
   // Actualizar estado de mercado periódicamente
   useEffect(() => {
@@ -746,6 +934,11 @@ function IndicatorsMenu({ config, onToggle }: { config: PanelConfig; onToggle: (
     ['bollinger', 'Bandas Bollinger (20,2)'],
     ['vwap', 'VWAP'],
     ['williams', 'Williams %R (14)'],
+    ['ema', 'EMA (21)'],
+    ['sma', 'SMA (50)'],
+    ['atr', 'ATR (14)'],
+    ['supertrend', 'Supertrend (10,3)'],
+    ['donchian', 'Donchian (20)'],
   ];
 
   const premiumIndicators: Array<[keyof PanelConfig['indicators'], string]> = [
