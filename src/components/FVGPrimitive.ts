@@ -12,10 +12,10 @@ import type { FVGBox } from '../types';
 
 class FVGPaneRenderer implements IPrimitivePaneRenderer {
   private _boxes: FVGBox[] | null = null;
-  private _series: ISeriesApi<'Candlestick'> | null = null;
+  private _series: ISeriesApi<'Line'> | null = null;
   private _timeScale: ITimeScaleApi<Time> | null = null;
 
-  setData(boxes: FVGBox[] | null, series: ISeriesApi<'Candlestick'> | null, timeScale: ITimeScaleApi<Time> | null) {
+  setData(boxes: FVGBox[] | null, series: ISeriesApi<'Line'> | null, timeScale: ITimeScaleApi<Time> | null) {
     this._boxes = boxes;
     this._series = series;
     this._timeScale = timeScale;
@@ -62,13 +62,13 @@ class FVGPaneView implements IPrimitivePaneView {
 export class FVGPrimitive implements ISeriesPrimitive<Time> {
   private readonly _renderer = new FVGPaneRenderer();
   private readonly _paneView: IPrimitivePaneView = new FVGPaneView(this._renderer);
-  private _series: ISeriesApi<'Candlestick'> | null = null;
+  private _series: ISeriesApi<'Line'> | null = null;
   private _timeScale: ITimeScaleApi<Time> | null = null;
   private _requestUpdate: (() => void) | null = null;
   private _boxes: FVGBox[] | null = null;
 
   attached(param: SeriesAttachedParameter<Time>) {
-    this._series = param.series as ISeriesApi<'Candlestick'>;
+    this._series = param.series as ISeriesApi<'Line'>;
     this._timeScale = param.chart.timeScale();
     this._requestUpdate = param.requestUpdate;
     this._renderer.setData(this._boxes, this._series, this._timeScale);

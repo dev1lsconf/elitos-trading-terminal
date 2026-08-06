@@ -5,12 +5,10 @@ import {
   IChartApi,
   ISeriesApi,
   ChartOptions,
-  CandlestickData,
   HistogramData,
   LineData,
   SeriesMarker,
   Time,
-  CandlestickSeries,
   HistogramSeries,
   LineSeries,
   LineStyle,
@@ -44,7 +42,7 @@ interface ChartPanelProps {
 export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarketChange, onIndicatorToggle, onMaximize, isMaximized = false, style }: ChartPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const mainSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const vwapSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const bollingerUpperRef = useRef<ISeriesApi<'Line'> | null>(null);
@@ -125,15 +123,13 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       },
     } as ChartOptions);
 
-    // Serie principal de velas
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderUpColor: '#26a69a',
-      borderDownColor: '#ef5350',
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-      priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+    // Serie principal de línea (porcentaje)
+    const mainSeries = chart.addSeries(LineSeries, {
+      color: '#26C6DA',
+      lineWidth: 2,
+      priceLineVisible: true,
+      priceFormat: { type: 'percent', precision: 2, minMove: 0.01 },
+      title: 'Price %',
     });
 
     // Serie de volumen (abajo)
@@ -143,7 +139,7 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       priceScaleId: 'volume',
     });
     chart.priceScale('volume').applyOptions({
-      scaleMargins: { top: 0.7, bottom: 0 },
+      scaleMargins: { top: 0.72, bottom: 0 },
     });
 
     chartRef.current = chart;
@@ -153,22 +149,27 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       const w = window as unknown as { __elitosCharts?: Record<string, IChartApi> };
       w.__elitosCharts = w.__elitosCharts ?? {};
       w.__elitosCharts[config.id] = chart;
+
+      // Exponer la serie principal para tests de priceFormat y valores
+      const w2 = window as unknown as { __elitosSeries?: Record<string, ISeriesApi<'Line'>> };
+      w2.__elitosSeries = w2.__elitosSeries ?? {};
+      w2.__elitosSeries[config.id] = mainSeries as ISeriesApi<'Line'>;
     }
 
-    candleSeriesRef.current = candleSeries as ISeriesApi<'Candlestick'>;
+    mainSeriesRef.current = mainSeries as ISeriesApi<'Line'>;
     volumeSeriesRef.current = volumeSeries as ISeriesApi<'Histogram'>;
 
     // Plugin de marcadores FVG (v5 reemplazó series.setMarkers)
-    markersPluginRef.current = createSeriesMarkers(candleSeries as ISeriesApi<'Candlestick'>);
+    markersPluginRef.current = createSeriesMarkers(mainSeries as ISeriesApi<'Line'>);
 
     // Primitive de histograma horizontal de Volume Profile
     const vpPrimitive = new VolumeProfilePrimitive();
-    candleSeries.attachPrimitive(vpPrimitive);
+    mainSeries.attachPrimitive(vpPrimitive);
     volumeProfilePrimitiveRef.current = vpPrimitive;
 
     // Primitive de cajas FVG (área entre velas, estilo TradingView)
     const fvgPrimitive = new FVGPrimitive();
-    candleSeries.attachPrimitive(fvgPrimitive);
+    mainSeries.attachPrimitive(fvgPrimitive);
     fvgPrimitiveRef.current = fvgPrimitive;
 
     // Aplicar series extra si hay indicadores activos
@@ -186,7 +187,7 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       } catch {}
       try { markersPluginRef.current?.detach(); } catch {}
       markersPluginRef.current = null;
-      candleSeriesRef.current = null;
+      mainSeriesRef.current = null;
       volumeSeriesRef.current = null;
       vwapSeriesRef.current = null;
       bollingerUpperRef.current = null;
@@ -206,6 +207,9 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       if (import.meta.env.DEV) {
         const w = window as unknown as { __elitosCharts?: Record<string, IChartApi> };
         if (w.__elitosCharts) delete w.__elitosCharts[config.id];
+
+        const w2 = window as unknown as { __elitosSeries?: Record<string, ISeriesApi<'Line'>> };
+        if (w2.__elitosSeries) delete w2.__elitosSeries[config.id];
       }
 
       if (import.meta.env.DEV) {
@@ -350,17 +354,17 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       const { fetchCrypto, fetchStocks, fetchCryptoLive } = await import('../services/api');
       let result: PanelData | null = null;
       if (config.market === 'crypto') {
-        const r = await fetchCrypto(config.symbol, config.timeframe);
-        // Obtener precio en vivo para crypto
-        const live = await fetchCryptoLive();
-        if (seq === loadSeqRef.current && live.live) setLastPrice(live.price);
-        if (seq === loadSeqRef.current) setMarketStatus('Live');
-        result = r;
-      } else {
-        const r = await fetchStocks(config.symbol, config.timeframe);
-        if (seq === loadSeqRef.current) setMarketStatus('Closed'); // se actualiza con fetchMarketStatus
-        result = r;
-      }
+      const r = await fetchCrypto(config.symbol, config.timeframe);
+      // Obtener precio en vivo para crypto
+      const live = await fetchCryptoLive();
+      if (seq === loadSeqRef.current && live.live) setLastPrice(live.price);
+      result = r;
+      // El badge de mercado solo lo actualiza fetchMarketStatus (efecto 30s);
+      // un cambio de símbolo/timeframe no debe pisarlo con un valor por defecto.
+    } else {
+      const r = await fetchStocks(config.symbol, config.timeframe);
+      result = r;
+    }
       // Validar que tenga candlestick data; si la API devolvió {error}, no actualizar datos.
       if (seq === loadSeqRef.current && result && Array.isArray(result.candles)) {
         setData(result);
@@ -395,7 +399,7 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
 
   // Actualizar series cuando llegan datos
   useEffect(() => {
-    if (!data || !data.candles || !candleSeriesRef.current || !volumeSeriesRef.current) return;
+    if (!data || !data.candles || !mainSeriesRef.current || !volumeSeriesRef.current) return;
 
     // Asegurar que las series de indicadores existen antes de setear sus datos.
     // Solo se reconstruyen si la config de indicadores cambió: un refresh de datos
@@ -419,12 +423,11 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
     // zoom para restaurar la vista del usuario tras un refresh del mismo contexto.
     prevRangeRef.current = chartRef.current?.timeScale().getVisibleLogicalRange() ?? null;
 
-    const candles: CandlestickData<Time>[] = data.candles.map((c: Candle) => ({
+    // Calcular porcentaje: value = (close[i] / base - 1) * 100, base = close[0]
+    const basePrice = data.candles[0]?.close ?? 1;
+    const lineData: LineData<Time>[] = data.candles.map((c: Candle) => ({
       time: c.time as Time,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
+      value: ((c.close / basePrice) - 1) * 100,
     }));
 
     const volumes: HistogramData<Time>[] = data.candles.map((c: Candle) => ({
@@ -433,7 +436,7 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       color: c.close >= c.open ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)',
     }));
 
-    candleSeriesRef.current.setData(candles);
+    mainSeriesRef.current.setData(lineData);
     volumeSeriesRef.current.setData(volumes);
     volumeSeriesRef.current.applyOptions({ visible: config.indicators.volume });
 
@@ -442,32 +445,33 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
     if (chart) {
       const volumeOn = config.indicators.volume;
       try {
-        chart.priceScale('right').applyOptions({ scaleMargins: volumeOn ? { top: 0.1, bottom: 0.25 } : { top: 0.1, bottom: 0.06 } });
+        chart.priceScale('right').applyOptions({ scaleMargins: volumeOn ? { top: 0.1, bottom: 0.3 } : { top: 0.1, bottom: 0.06 } });
       } catch {}
     }
 
     // Indicadores
     if (data.indicators) {
       const ind = data.indicators;
+      const basePrice = data.candles[0]?.close ?? 1;
 
-      // VWAP
+      // VWAP (convertido a %)
       if (config.indicators.vwap && vwapSeriesRef.current && ind.vwap && ind.vwap.length > 0) {
         const vwapData: LineData<Time>[] = ind.vwap
-          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: v } : null)
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) - 1) * 100 } : null)
           .filter((v): v is LineData<Time> => v !== null);
         if (vwapData.length > 0) vwapSeriesRef.current.setData(vwapData);
       }
 
-      // Bollinger
+      // Bollinger (convertido a %)
       if (config.indicators.bollinger && bollingerUpperRef.current && ind.bollinger) {
         const upperData: LineData<Time>[] = ind.bollinger.upper
-          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: v } : null)
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) - 1) * 100 } : null)
           .filter((v): v is LineData<Time> => v !== null);
         const midData: LineData<Time>[] = ind.bollinger.mid
-          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: v } : null)
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) - 1) * 100 } : null)
           .filter((v): v is LineData<Time> => v !== null);
         const lowerData: LineData<Time>[] = ind.bollinger.lower
-          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: v } : null)
+          .map((v: number | null, i: number) => v !== null ? { time: ind.times[i] as Time, value: ((v / basePrice) - 1) * 100 } : null)
           .filter((v): v is LineData<Time> => v !== null);
         if (upperData.length > 0) bollingerUpperRef.current.setData(upperData);
         if (midData.length > 0 && bollingerMidRef.current) bollingerMidRef.current.setData(midData);
@@ -513,27 +517,50 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
       // Volume Profile - líneas POC/VAH/VAL + histograma horizontal
       const vp = ind.volume_profile;
       const removeVpLines = () => {
-        if (!candleSeriesRef.current) return;
+        if (!mainSeriesRef.current) return;
         [vpPocLineRef, vpVahLineRef, vpValLineRef].forEach(ref => {
           if (ref.current) {
-            try { candleSeriesRef.current!.removePriceLine(ref.current); } catch {}
+            try { mainSeriesRef.current!.removePriceLine(ref.current); } catch {}
             ref.current = null;
           }
         });
       };
       if (config.indicators.volumeProfile && vp && vp.poc !== null) {
         removeVpLines();
-        vpPocLineRef.current = candleSeriesRef.current.createPriceLine({ price: vp.poc, color: '#FF9800', lineWidth: 2, axisLabelVisible: true, title: 'POC' });
-        if (vp.vah !== null) vpVahLineRef.current = candleSeriesRef.current.createPriceLine({ price: vp.vah, color: '#787B86', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'VAH' });
-        if (vp.val !== null) vpValLineRef.current = candleSeriesRef.current.createPriceLine({ price: vp.val, color: '#787B86', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'VAL' });
+        // Convertir a porcentaje usando la misma base
+        const pocPct = ((vp.poc / basePrice) - 1) * 100;
+        const vahPct = vp.vah !== null ? ((vp.vah / basePrice) - 1) * 100 : null;
+        const valPct = vp.val !== null ? ((vp.val / basePrice) - 1) * 100 : null;
+        vpPocLineRef.current = mainSeriesRef.current.createPriceLine({ price: pocPct, color: '#FF9800', lineWidth: 2, axisLabelVisible: true, title: 'POC' });
+        if (vahPct !== null) vpVahLineRef.current = mainSeriesRef.current.createPriceLine({ price: vahPct, color: '#787B86', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'VAH' });
+        if (valPct !== null) vpValLineRef.current = mainSeriesRef.current.createPriceLine({ price: valPct, color: '#787B86', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'VAL' });
+
+        // Convertir bins a porcentaje para el primitive
+        const vpConverted = {
+          ...vp,
+          poc: pocPct,
+          vah: vahPct,
+          val: valPct,
+          bins: vp.bins.map(bin => ({
+            ...bin,
+            price: ((bin.price / basePrice) - 1) * 100,
+          })),
+        };
+        volumeProfilePrimitiveRef.current?.setData(config.indicators.volumeProfile && vpConverted ? vpConverted : null);
       } else {
         removeVpLines();
+        volumeProfilePrimitiveRef.current?.setData(null);
       }
-      volumeProfilePrimitiveRef.current?.setData(config.indicators.volumeProfile && vp ? vp : null);
 
       // FVG - cajas (primitiva) + marcadores en la serie principal (plugin createSeriesMarkers de v5)
       const fvgBoxes: FVGBox[] = ind.fvg ?? [];
-      fvgPrimitiveRef.current?.setData(config.indicators.fvg ? fvgBoxes : null);
+      // Convertir FVG boxes a porcentaje
+      const fvgBoxesPct = fvgBoxes.map(box => ({
+        ...box,
+        top: ((box.top / basePrice) - 1) * 100,
+        bottom: ((box.bottom / basePrice) - 1) * 100,
+      }));
+      fvgPrimitiveRef.current?.setData(config.indicators.fvg ? fvgBoxesPct : null);
       if (config.indicators.fvg && markersPluginRef.current) {
         const markers: SeriesMarker<Time>[] = fvgBoxes.map((box: FVGBox) => ({
           time: box.start as Time,
@@ -566,7 +593,6 @@ export function ChartPanel({ config, onSymbolChange, onTimeframeChange, onMarket
     const barsToShow = Math.max(10, Math.floor(width / DEFAULT_BAR_SPACING));
     const n = data.candles.length;
     try {
-      chart.timeScale().applyOptions({ rightOffset: 2 });
       if (barsToShow >= n) {
         chart.timeScale().fitContent();
       } else {

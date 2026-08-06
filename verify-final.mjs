@@ -93,13 +93,85 @@ const fit1 = await chartFits();
 report(fit1.fits && fit1.fillsWidth, `chart llena panel grid=1 (cw=${fit1.cw}, pw=${fit1.pw}, ch=${fit1.ch})`);
 
 const SEL = 'main .rounded-lg';
+const H_MID = 0.4;   // la banda inferior del panel empieza a partir del 40% de altura
+const H_BOTTOM = 1.0;
 
-// Volumen: ON por defecto → toggle OFF → el histograma (verde compuesto ~#0F4B48) desaparece
-const volBefore = await countColor(SEL, [15, 75, 72], 20);
+// ---- Modo compare: línea de % cambio (reemplaza las velas) ----
+const CYAN = [38, 198, 218]; // #26C6DA
+async function compareSeriesInfo(panelId) {
+  return page.evaluate((id) => {
+    const s = window.__elitosSeries?.[id] ?? null;
+    if (!s) return null;
+    let opts = null;
+    try { opts = s.options(); } catch {}
+    let last = null;
+    try { last = s.dataByIndex?.(s.data().length - 1); } catch {}
+    let seriesType = null;
+    try { seriesType = s.seriesType(); } catch {}
+    return { priceFormat: opts?.priceFormat, last: last?.value ?? null, seriesType };
+  }, panelId);
+}
+
+// 1) La línea compare (cyan) debe estar presente
+report((await countColor(SEL, CYAN)) > 12, 'compare: linea principal cyan presente');
+
+// 2) La serie principal es una Line (no Candlestick) → no hay cuerpos de vela
+{
+  const info = await compareSeriesInfo('panel-0');
+  report(!!info && info.seriesType === 'Line', `compare: serie principal es Line (${info?.seriesType ?? 'n/a'})`);
+}
+
+// 3) La serie principal usa priceFormat percent
+{
+  const info = await compareSeriesInfo('panel-0');
+  report(!!info && info.priceFormat?.type === 'percent', `compare: priceFormat=percent (${info?.priceFormat?.type ?? 'n/a'})`);
+}
+
+// 4) El último valor corresponde al % de cambio vs la primera vela del dataset
+{
+  const res = await fetch('http://localhost:5001/api/stocks?symbol=AAPL&interval=1d');
+  const j = await res.json();
+  const closes = (j.candles ?? []).map(c => c.close);
+  const expected = (closes[closes.length - 1] / closes[0] - 1) * 100;
+  const info = await compareSeriesInfo('panel-0');
+  const diff = info && info.last != null ? Math.abs(info.last - expected) : Infinity;
+  report(!!info && info.last != null && diff < 0.05, `compare: ultimo valor = % cambio (last=${info?.last?.toFixed(2) ?? 'n/a'}, expected=${expected.toFixed(2)})`);
+}
+
+// Volumen: ON por defecto → toggle OFF → el histograma (verde compuesto ~#0F4B48) desaparece.
+// tol=8 para evitar falsos positivos de la antialias de la línea cyan compare.
+const volBefore = await countColor(SEL, [15, 75, 72], 8);
 await toggleIndicator('Volumen');
-const volAfter = await countColor(SEL, [15, 75, 72], 20);
+const volAfter = await countColor(SEL, [15, 75, 72], 8);
 report(volBefore > 60 && volAfter < 60, `Volumen toggle (before=${volBefore}, after=${volAfter})`);
 await toggleIndicator('Volumen'); // volver a ON
+
+// Volumen: el histograma debe ocupar la mitad inferior del panel (separado del precio).
+// tol=8 para evitar la antialias de la línea cyan; el verde #0F4B48 del volumen está abajo.
+{
+  const geom = await page.evaluate(({ H_MID, H_BOTTOM }) => {
+    const panel = document.querySelector('main .rounded-lg');
+    const widget = panel.querySelector('.tv-lightweight-charts');
+    const canvas = widget.querySelectorAll('canvas')[0];
+    const W = canvas.width, H = canvas.height;
+    const img = canvas.getContext('2d').getImageData(0, 0, W, H).data;
+    let volumeMinRow = -1, volumeMaxRow = -1;
+    for (let y = 0; y < H; y++) {
+      let volCnt = 0;
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        const r = img[i], g = img[i + 1], b = img[i + 2];
+        if (Math.abs(r - 15) < 8 && Math.abs(g - 75) < 8 && Math.abs(b - 72) < 8) volCnt++;
+      }
+      if (volCnt > 3) {
+        if (volumeMinRow < 0) volumeMinRow = y;
+        volumeMaxRow = y;
+      }
+    }
+    return { volumeMinRow, volumeMaxRow, volTopPct: +(volumeMinRow / H).toFixed(3), volBottomPct: +(volumeMaxRow / H).toFixed(3), ok: volumeMinRow > 0 && (volumeMinRow / H) > H_MID && (volumeMaxRow / H) <= H_BOTTOM };
+  }, { H_MID, H_BOTTOM });
+  report(geom.ok, `Volumen en la mitad inferior (volTop=${geom.volTopPct}, volBottom=${geom.volBottomPct})`);
+}
 
 // VWAP (naranja #FF9800)
 await toggleIndicator('VWAP');
@@ -287,6 +359,35 @@ const total1d = await totalBars('AAPL', '1d');
 const r1d = await visibleRange('panel-0');
 report(!!r1d && r1d.from <= 1 && r1d.count >= total1d - 2, `zoom default: grid=1 1d muestra todo (visible=${r1d ? Math.round(r1d.count) : 'n/a'}, total=${total1d})`);
 
+// La última vela debe quedar pegada al borde derecho (sin franja vacía derecha).
+// Regresión: rightOffset:2 dejaba ~2 slots vacíos tras la última vela (hasta ~178px en 1M).
+async function rightMarginInfo(tf) {
+  const res = await fetch(`http://localhost:5001/api/stocks?symbol=AAPL&interval=${tf}`);
+  const j = await res.json();
+  const n = (j.candles ?? []).length;
+  return page.evaluate((n) => {
+    const panel = document.querySelector('main .rounded-lg');
+    const widget = panel.querySelector('.tv-lightweight-charts');
+    const canvas = widget.querySelectorAll('canvas')[0];
+    const W = canvas.width;
+    const ts = window.__elitosCharts?.['panel-0']?.timeScale();
+    if (!ts) return null;
+    const xLast = ts.logicalToCoordinate(n - 1);
+    const xPrev = ts.logicalToCoordinate(n - 2);
+    if (xLast == null || xPrev == null) return null;
+    return { W, xLast, spacing: Math.abs(xLast - xPrev) };
+  }, n);
+}
+
+for (const tf of ['1h', '1w', '1M', '1d']) {
+  await page.locator('main .rounded-lg select').nth(1).selectOption(tf);
+  await page.waitForTimeout(2500);
+  const rm = await rightMarginInfo(tf);
+  const rightEmpty = rm ? rm.W - 1 - rm.xLast : null;
+  const ratio = rm && rm.spacing > 0 ? rightEmpty / rm.spacing : null;
+  report(!!rm && ratio != null && ratio <= 1.5, `sin franja vacia derecha ${tf} (rightEmpty=${rightEmpty != null ? Math.round(rightEmpty) : 'n/a'}px, spacing=${rm ? Math.round(rm.spacing) : 'n/a'}px, ratio=${ratio?.toFixed(2)})`);
+}
+
 await page.screenshot({ path: 'verify_default_zoom.png' });
 
 // ---- Refresco automático de los paneles (cada 10s) ----
@@ -305,6 +406,12 @@ await page.waitForTimeout(11500); // cubre al menos un tick de refresh (10s)
 const meta1 = await chartMeta('panel-0');
 report((meta1?.refreshCount ?? 0) > refreshCountBefore, `refresh: el contador incrementa tras ~11s (before=${refreshCountBefore}, after=${meta1 ? meta1.refreshCount : 'n/a'})`);
 report((meta1?.lastUpdated ?? 0) > tsBefore, `refresh: lastUpdated se actualiza (before=${tsBefore}, after=${meta1 ? meta1.lastUpdated : 'n/a'})`);
+
+// El badge de mercado debe reflejar el estado real (fetchMarketStatus), no ser
+// pisado por un refresh de datos (cada 10s)
+const realUsStatus = (await (await fetch('http://localhost:5001/api/market-status')).json()).us;
+const badge = await page.locator('main .rounded-lg span', { hasText: /^(Live|Closed)$/ }).first().textContent({ timeout: 3000 }).catch(() => null);
+report(!!badge && badge.trim() === realUsStatus, `refresh: el badge de mercado coincide con el estado real (badge=${badge?.trim() ?? 'n/a'}, real=${realUsStatus})`);
 
 // Aplicar un zoom custom vía dev hook: debe preservarse tras un refresh
 await page.evaluate((id) => {

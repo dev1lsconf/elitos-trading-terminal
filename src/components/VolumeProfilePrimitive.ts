@@ -11,9 +11,9 @@ import type { VolumeProfileData } from '../types';
 
 class VolumeProfilePaneRenderer implements IPrimitivePaneRenderer {
   private _data: VolumeProfileData | null = null;
-  private _series: ISeriesApi<'Candlestick'> | null = null;
+  private _series: ISeriesApi<'Line'> | null = null;
 
-  setData(data: VolumeProfileData | null, series: ISeriesApi<'Candlestick'> | null) {
+  setData(data: VolumeProfileData | null, series: ISeriesApi<'Line'> | null) {
     this._data = data;
     this._series = series;
   }
@@ -58,12 +58,12 @@ class VolumeProfilePaneView implements IPrimitivePaneView {
 export class VolumeProfilePrimitive implements ISeriesPrimitive<Time> {
   private readonly _renderer = new VolumeProfilePaneRenderer();
   private readonly _paneView: IPrimitivePaneView = new VolumeProfilePaneView(this._renderer);
-  private _series: ISeriesApi<'Candlestick'> | null = null;
+  private _series: ISeriesApi<'Line'> | null = null;
   private _requestUpdate: (() => void) | null = null;
   private _data: VolumeProfileData | null = null;
 
   attached(param: SeriesAttachedParameter<Time>) {
-    this._series = param.series as ISeriesApi<'Candlestick'>;
+    this._series = param.series as ISeriesApi<'Line'>;
     this._requestUpdate = param.requestUpdate;
     this._renderer.setData(this._data, this._series);
   }
