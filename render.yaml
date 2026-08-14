@@ -1,36 +1,23 @@
-# Render Blueprint - Deploy Elitos Trading Terminal
+# Render Blueprint - Deploy Elitos Trading Terminal usando Docker
 # Uso: push a GitHub -> conectar repo en Render -> "New Blueprint Instance"
-# NOTA: Render inyecta PORT automáticamente (default 10000)
+# Esto usa Dockerfile multi-stage (Node para build + Python para runtime)
 
 services:
   - type: web
     name: elitos-trading-terminal
-    runtime: python
-    buildCommand: |
-      pip install -r backend/requirements.txt
-      npm ci
-      npm run build
-    startCommand: gunicorn backend.wsgi:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11
-      - key: NODE_VERSION
-        value: 20
       - key: FLASK_ENV
         value: production
       - key: LOG_LEVEL
         value: INFO
+      - key: PORT
+        value: "5000"
     healthCheckPath: /api/market-status
-    # Descomenta para discos persistentes (si agregas DB/cache)
-    # disk:
-    #   name: elitos-data
-    #   mountPath: /data
-    #   sizeGB: 1
 
 # NOTAS:
-# - Gunicorn sirve como WSGI server (reemplaza app.run() de Flask)
-# - El buildCommand instala deps Python + Node, luego hace npm run build
-#   que genera dist/ que Flask sirve en producción
-# - wsgi.py es el entrypoint: from app import app
-# - PORT es inyectado por Render (default 10000), gunicorn lo usa via $PORT
-# - NODE_VERSION asegura Node 20 para el build de Vite
+# - Dockerfile maneja: Node build (Vite) + Python runtime (Gunicorn)
+# - Puerto interno 5000, Render mapea al PORT público
+# - dist/ se copia en la imagen durante build
+# - Más confiable que runtime: python + buildCommand mixto
