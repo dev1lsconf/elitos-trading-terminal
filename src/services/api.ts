@@ -1,6 +1,14 @@
 // Servicio API para comunicación con el backend Flask
 
-const API_BASE = '/api';
+// En desarrollo: usa proxy de Vite (/api -> localhost:5000)
+// En producción: usa VITE_API_URL (ej: https://api.elitos.com) o relativo (/api)
+const getApiBase = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) return envUrl.replace(/\/$/, ''); // URL absoluta del backend
+  return '/api'; // relativo -> usa proxy en dev, o mismo origen en prod (Flask sirve ambos)
+};
+
+const API_BASE = getApiBase();
 
 export interface PanelData {
   candles: Array<{

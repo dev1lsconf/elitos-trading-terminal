@@ -1,0 +1,33 @@
+# Render Blueprint - Deploy Elitos Trading Terminal
+# Uso: push a GitHub -> conectar repo en Render -> "New Blueprint Instance"
+# NOTA: Render inyecta PORT automáticamente (default 10000)
+
+services:
+  - type: web
+    name: elitos-trading-terminal
+    runtime: python
+    buildCommand: |
+      pip install -r backend/requirements.txt
+      npm ci
+      npm run build
+    startCommand: gunicorn backend.wsgi:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: FLASK_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+    healthCheckPath: /api/market-status
+    # Descomenta para discos persistentes (si agregas DB/cache)
+    # disk:
+    #   name: elitos-data
+    #   mountPath: /data
+    #   sizeGB: 1
+
+# NOTAS:
+# - Gunicorn sirve como WSGI server (reemplaza app.run() de Flask)
+# - El buildCommand instala deps Python + Node, luego hace npm run build
+#   que genera dist/ que Flask sirve en producción
+# - wsgi.py es el entrypoint: from app import app
+# - PORT es inyectado por Render (default 10000), gunicorn lo usa via $PORT

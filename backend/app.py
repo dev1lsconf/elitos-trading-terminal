@@ -1,16 +1,19 @@
 """Servidor Flask de Elitos: API REST + WebSocket de datos de mercado.
 
 Ejecución:  python app.py   ->  localhost:5000
+En producción: sirve el build estático del frontend desde dist/
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import math
+import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 import data_sources as ds
@@ -19,8 +22,15 @@ import indicators as ind
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("elitos")
 
-app = Flask(__name__)
-CORS(app)  # permite que el dev server de Vite consuma la API
+# Directorio del build del frontend (para producción)
+DIST_DIR = Path(__file__).parent.parent / "dist"
+
+app = Flask(__name__, static_folder=DIST_DIR if DIST_DIR.exists() else None)
+# CORS: en producción restringe a tu dominio, en desarrollo permite todo
+if os.environ.get("FLASK_ENV") == "production":
+    CORS(app, origins=os.environ.get("CORS_ORIGINS", "").split(","))
+else:
+    CORS(app)  # dev: permite localhost:5001, etc.
 
 
 def _frame(raw: list[dict]) -> pd.DataFrame:
@@ -134,6 +144,23 @@ def build_payload(raw: list[dict]) -> dict:
             "fvg": [],
         } if not df.empty else {}
     return payload
+
+
+# ============================================================
+# Servir frontend estático en producción (cuando existe dist/)
+# ============================================================
+if DIST_DIR.exists():
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def serve_frontend(path: str):
+        """Sirve index.html para todas las rutas no-API (SPA fallback)."""
+        if path.startswith("api/"):
+            return jsonify({"error": "Not found"}), 404
+        target = DIST_DIR / path
+        if target.exists() and target.is_file():
+            return send_from_directory(DIST_DIR, path)
+        # SPA fallback: index.html para rutas de la app
+        return send_from_directory(DIST_DIR, "index.html")
 
 
 if __name__ == "__main__":

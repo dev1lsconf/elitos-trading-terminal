@@ -1,0 +1,46 @@
+# Netlify Config - Deploy solo el FRONTEND (Vite + React)
+# Para el backend Flask, usa Render o Railway y configura la URL en VITE_API_URL
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"  # opcional: para serverless functions si migras la API
+
+[build.environment]
+  NODE_VERSION = "20"
+  # VITE_API_URL = "https://tu-backend.render.com"  # Descomenta y configura en Netlify UI
+
+[[redirects]]
+  # SPA fallback: todas las rutas no-estáticas van a index.html
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  # Proxy de API al backend externo (configura VITE_API_URL en env vars)
+  # from = "/api/*"
+  # to = "https://tu-backend.render.com/api/:splat"
+  # status = 200
+  # force = false
+
+[headers]
+  # Seguridad básica
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# [functions]
+#   # Si migras la API a Netlify Functions (Python):
+#   node_bundler = "esbuild"
+#   external_node_modules = ["*"]
+
+# NOTAS:
+# 1. Netlify NO ejecuta servidores Python persistentes (no Gunicorn/Flask long-running).
+#    Opciones para el backend:
+#    A) Deploy backend en Render/Railway/Fly.io -> configura VITE_API_URL en Netlify
+#    B) Migra API a Netlify Functions (Python) - requiere refactor a handlers serverless
+# 2. El frontend build usa Vite + Tailwind v4 -> output en dist/
+# 3. Variables de entorno en Netlify UI: Site settings > Environment variables

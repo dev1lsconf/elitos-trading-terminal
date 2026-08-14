@@ -1,0 +1,58 @@
+# Docker Compose para desarrollo local con hot reload
+# Uso: docker compose up --build
+# Acceso: http://localhost:5000 (sirve frontend + API)
+
+services:
+  # Backend Flask + Frontend estático (producción-like)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: elitos-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+    volumes:
+      # Montar backend para hot reload en desarrollo
+      - ./backend:/app/backend:ro
+      # dist/ se sirve desde la imagen (build estático)
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/market-status', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Opcional: Frontend dev server con Vite (hot reload real)
+  # Descomenta si quieres desarrollo frontend separado
+  # frontend:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.frontend
+  #   container_name: elitos-frontend
+  #   ports:
+  #     - "5001:5001"
+  #   environment:
+  #     - VITE_API_URL=http://localhost:5000
+  #   volumes:
+  #     - ./src:/app/src:ro
+  #     - ./index.html:/app/index.html:ro
+  #     - ./vite.config.ts:/app/vite.config.ts:ro
+  #     - ./tsconfig*.json:/app/
+  #     - ./package*.json:/app/
+  #   command: npm run dev -- --host 0.0.0.0 --port 5001
+  #   depends_on:
+  #     - backend
+  #   profiles: ["dev"]
+
+# ============================================================
+# ALTERNATIVA: Desarrollo puro local (sin Docker backend)
+# ============================================================
+# 1. Terminal 1: cd backend && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt && python app.py
+# 2. Terminal 2: npm install && npm run dev
+#    -> Frontend en http://localhost:5001 (proxy /api a localhost:5000)
+#    -> Backend en http://localhost:5000
