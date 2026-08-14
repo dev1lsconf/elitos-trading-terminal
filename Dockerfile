@@ -61,5 +61,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/market-status', timeout=3)" || exit 1
 
-# Comando de inicio
-CMD ["python", "backend/app.py"]
+# Comando de inicio - Gunicorn para producción
+CMD ["gunicorn", "backend.wsgi:app", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120"]
