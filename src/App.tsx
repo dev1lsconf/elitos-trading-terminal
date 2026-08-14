@@ -115,6 +115,7 @@ export default function App() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
             Elitos
+            <span className="text-xs font-normal text-[#787B86] ml-2">by Eric Batista</span>
           </h1>
 
           {/* Grid selector */}
@@ -212,7 +213,7 @@ export default function App() {
 
       {/* Footer con info */}
       <footer className="border-t border-[#1E222D] px-4 py-2 text-xs text-[#787B86] text-center">
-        Elitos Trading Terminal — Datos: Yahoo Finance (US Stocks) —
+        Elitos Trading Terminal — by Eric Batista — Datos: Yahoo Finance (US Stocks) —
         <a href="https://github.com/tradingview/lightweight-charts" target="_blank" rel="noopener" className="text-[#2962FF] hover:underline mx-1">
           Lightweight Charts
         </a>

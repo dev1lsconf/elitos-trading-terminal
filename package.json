@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "author": "Eric Batista",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -2,9 +2,11 @@
 
 Terminal de trading visual estilo cyberpunk/minimalista construida con **Vite + React 19**, **lightweight-charts v5** y backend **Flask + pandas/numpy**.
 
+**Creado por Eric Batista** — Full Stack & DevOps, Barcelona
+
 ## Características
 
-### ��� Gráficos
+### ����� Gráficos
 - **Serie principal**: Línea continua de **% cambio** (modo "compare") respecto a la primera vela del dataset — sin huecos entre velas
 - **Volumen**: Histograma inferior con escala propia (toggle ON/OFF)
 - **Overlays de precio** (5, convertidos a % con la misma base):
@@ -28,7 +30,7 @@ Terminal de trading visual estilo cyberpunk/minimalista construida con **Vite + 
 - Refresh cada 10s (background, preserva zoom del usuario)
 - Estado persistente: último precio, timestamp "Últ. act."
 
-### ��� Estética
+### ����� Estética
 - Tema oscuro cyberpunk (`#131722` fondo, `#26C6DA` cyan acento)
 - Tipografía Inter variable
 - Scrollbars, crosshair, grid sutiles
@@ -52,7 +54,7 @@ Terminal de trading visual estilo cyberpunk/minimalista construida con **Vite + 
 
 ## ��� Despliegue
 
-El proyecto está configurado para desplegarse en **Render**, **Vercel** o **Netlify** (ver detalles abajo). También incluye `Dockerfile` + `docker-compose.yml` para contenedores.
+El proyecto está configurado para **Render** (recomendado) y **Docker** (cualquier VPS/Cloud Run/Fly.io/Railway).
 
 ### Opción A: Render (Recomendado — Backend + Frontend juntos)
 
@@ -64,9 +66,8 @@ El proyecto está configurado para desplegarse en **Render**, **Vercel** o **Net
 4. **Deploy** — listo en ~3 min
 
 **Lo que hace `render.yaml`:**
-- Instala deps Python (`backend/requirements.txt`) + Node (`npm ci`)
-- Ejecuta `npm run build` → genera `dist/`
-- Inicia `python backend/app.py` en puerto 5000
+- Usa `Dockerfile` multi-stage (Node build + Python runtime)
+- Gunicorn como WSGI server en puerto 5000
 - Flask sirve `dist/` en `/` y API en `/api/*`
 - Health check en `/api/market-status`
 
@@ -75,69 +76,13 @@ El proyecto está configurado para desplegarse en **Render**, **Vercel** o **Net
 |----------|-------|-------|
 | `FLASK_ENV` | `production` | |
 | `LOG_LEVEL` | `INFO` | |
-| `PORT` | `5000` | Auto-inyectado por Render |
+| `PORT` | `5000` | Puerto interno del contenedor |
 
 **URL final:** `https://elitos-trading-terminal.onrender.com` (o tu nombre personalizado)
 
 ---
 
-### Opción B: Vercel (Frontend + Serverless Functions)
-
-> Vercel ejecuta el frontend estático y la API como **Python Serverless Functions** (máx 30s/req). Buena para tráfico bajo/medio.
-
-1. Push a GitHub
-2. En [Vercel Dashboard](https://vercel.com/dashboard) → **Add New** → **Project**
-3. Importa el repo → Vercel detecta `vercel.json` + `package.json` (Vite)
-4. **Deploy**
-
-**Configuración (`vercel.json`):**
-- `buildCommand: npm run build` → output en `dist/`
-- `functions: backend/app.py` → runtime Python 3.11, max 30s
-- Rewrites: `/api/*` → serverless function
-- Headers de seguridad incluidos
-
-**Variables de entorno en Vercel (Settings → Environment Variables):**
-| Variable | Valor | Notas |
-|----------|-------|-------|
-| `VITE_API_URL` | *(vacío)* | Mismo origen — functions en `/api/*` |
-
-**URL final:** `https://elitos-trading-terminal.vercel.app`
-
-> ������ **Limitación:** Serverless functions tienen cold starts (~1-2s) y timeout 30s. Para WebSockets (Hyperliquid live) usa Render o Fly.io.
-
----
-
-### Opción C: Netlify (Solo Frontend) + Backend Externo
-
-> Netlify **no** ejecuta servidores Python persistentes. Despliega solo el frontend y apunta la API a un backend en Render/Railway/Fly.io.
-
-#### 1. Despliega el Backend (Render/Railway/Fly.io)
-```bash
-# Render: usa el mismo render.yaml pero como "Web Service" solo backend
-# Railway: railway up (detecta Python automáticamente)
-# Fly.io: fly launch (genera fly.toml)
-```
-Obtén la URL pública: `https://elitos-api.onrender.com`
-
-#### 2. Despliega Frontend en Netlify
-1. Push a GitHub
-2. En [Netlify Dashboard](https://app.netlify.com) → **Add new site** → **Import from Git**
-3. Build settings (auto-detectados por `netlify.toml`):
-   - Build command: `npm run build`
-   - Publish directory: `dist`
-4. **Environment variables** (Site settings → Environment variables):
-   | Variable | Valor |
-   |----------|-------|
-   | `VITE_API_URL` | `https://elitos-api.onrender.com` |
-5. **Deploy**
-
-**URL final:** `https://elitos-trading-terminal.netlify.app`
-
-> �� Netlify hace proxy de `/api/*` a `VITE_API_URL` si configuras el redirect en `netlify.toml` (descomenta la sección `[[redirects]]`).
-
----
-
-### Opción D: Docker (Cualquier VPS / Cloud Run / Fly.io / Railway)
+### Opción B: Docker (Cualquier VPS / Cloud Run / Fly.io / Railway)
 
 ```bash
 # Build
@@ -211,16 +156,14 @@ cp .env.example .env.local
 ├── dist/                   # Build de producción (generado por npm run build)
 ├── verify-final.mjs        # Suite E2E Playwright (58 tests)
 ├── render.yaml             # Render Blueprint
-├── vercel.json             # Vercel config
-├── netlify.toml            # Netlify config (frontend only)
 ├── Dockerfile              # Multi-stage build
 ├── docker-compose.yml      # Dev local con Docker
-��── .env.example            # Template de variables de entorno
+├── .env.example            # Template de variables de entorno
 ```
 
 ---
 
-## �� Tests E2E
+## ��� Tests E2E
 
 ```bash
 # Terminal 1: backend
