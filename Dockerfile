@@ -18,7 +18,7 @@ COPY src/ ./src/
 COPY index.html ./
 COPY vite.config.ts ./
 COPY tsconfig*.json ./
-COPY tailwind.config.* ./
+COPY *.css ./
 RUN npm run build
 
 # ============================================================
