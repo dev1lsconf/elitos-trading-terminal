@@ -14,6 +14,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11
+      - key: NODE_VERSION
+        value: 20
       - key: FLASK_ENV
         value: production
       - key: LOG_LEVEL
@@ -31,3 +33,4 @@ services:
 #   que genera dist/ que Flask sirve en producción
 # - wsgi.py es el entrypoint: from app import app
 # - PORT es inyectado por Render (default 10000), gunicorn lo usa via $PORT
+# - NODE_VERSION asegura Node 20 para el build de Vite
